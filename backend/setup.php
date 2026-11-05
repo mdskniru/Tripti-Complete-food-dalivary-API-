@@ -32,6 +32,42 @@ $tables = [
         PRIMARY KEY (id),
         UNIQUE KEY uniq_users_email (email)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    "CREATE TABLE IF NOT EXISTS customer (
+        Customer_Id INT UNSIGNED NOT NULL,
+        Customer_Name VARCHAR(120) NOT NULL,
+        Customer_Email VARCHAR(190) NOT NULL,
+        Customer_Phone VARCHAR(30) NOT NULL,
+        Customer_Password VARCHAR(255) NOT NULL,
+        Customer_Address VARCHAR(255) NOT NULL DEFAULT '',
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (Customer_Id),
+        UNIQUE KEY uniq_customer_email (Customer_Email)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    "CREATE TABLE IF NOT EXISTS restaurant (
+        Restaurant_Id INT UNSIGNED NOT NULL,
+        Restaurant_Owner VARCHAR(120) NOT NULL,
+        Restaurant_Name VARCHAR(150) NOT NULL,
+        Restaurant_Email VARCHAR(190) NOT NULL,
+        Restaurant_Phone VARCHAR(30) NOT NULL,
+        Restaurant_Password VARCHAR(255) NOT NULL,
+        Restaurant_Address VARCHAR(255) NOT NULL DEFAULT '',
+        logo LONGTEXT NULL,
+        is_open TINYINT(1) NOT NULL DEFAULT 1,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (Restaurant_Id),
+        UNIQUE KEY uniq_restaurant_email (Restaurant_Email)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    "CREATE TABLE IF NOT EXISTS rider (
+        Rider_Id INT UNSIGNED NOT NULL,
+        Rider_Name VARCHAR(120) NOT NULL,
+        Rider_Email VARCHAR(190) NOT NULL,
+        Rider_Phone VARCHAR(30) NOT NULL,
+        Rider_Password VARCHAR(255) NOT NULL DEFAULT '',
+        vehicle_type VARCHAR(40) NOT NULL DEFAULT 'Bike',
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (Rider_Id),
+        UNIQUE KEY uniq_rider_email (Rider_Email)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
     "CREATE TABLE IF NOT EXISTS foods (
         id INT UNSIGNED NOT NULL AUTO_INCREMENT,
         restaurant_id INT UNSIGNED NOT NULL,
@@ -182,6 +218,23 @@ if ($existing === 0) {
 
     $seeded = true;
 }
+
+$pdo->exec("
+    INSERT INTO customer (Customer_Id, Customer_Name, Customer_Email, Customer_Phone, Customer_Password, Customer_Address, created_at)
+    SELECT id, name, email, phone, password_hash, address, created_at
+    FROM users WHERE role = 'customer'
+    ON DUPLICATE KEY UPDATE Customer_Name = VALUES(Customer_Name), Customer_Phone = VALUES(Customer_Phone), Customer_Password = VALUES(Customer_Password), Customer_Address = VALUES(Customer_Address);
+
+    INSERT INTO restaurant (Restaurant_Id, Restaurant_Owner, Restaurant_Name, Restaurant_Email, Restaurant_Phone, Restaurant_Password, Restaurant_Address, logo, is_open, created_at)
+    SELECT id, name, restaurant_name, email, phone, password_hash, address, logo, is_open, created_at
+    FROM users WHERE role = 'restaurant'
+    ON DUPLICATE KEY UPDATE Restaurant_Owner = VALUES(Restaurant_Owner), Restaurant_Name = VALUES(Restaurant_Name), Restaurant_Phone = VALUES(Restaurant_Phone), Restaurant_Password = VALUES(Restaurant_Password), Restaurant_Address = VALUES(Restaurant_Address), logo = VALUES(logo), is_open = VALUES(is_open);
+
+    INSERT INTO rider (Rider_Id, Rider_Name, Rider_Email, Rider_Phone, Rider_Password, vehicle_type, created_at)
+    SELECT id, name, email, phone, password_hash, vehicle_type, created_at
+    FROM users WHERE role = 'rider'
+    ON DUPLICATE KEY UPDATE Rider_Name = VALUES(Rider_Name), Rider_Phone = VALUES(Rider_Phone), Rider_Password = VALUES(Rider_Password), vehicle_type = VALUES(vehicle_type);
+");
 
 json_response([
     'ok' => true,

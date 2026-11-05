@@ -55,6 +55,8 @@ if ($check->fetch()) {
     fail('An account with this email already exists', 409);
 }
 
+$passwordHash = password_hash($password, PASSWORD_DEFAULT);
+
 $stmt = $pdo->prepare(
     'INSERT INTO users (role, name, email, password_hash, phone, address, restaurant_name, logo, is_open, vehicle_type)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
@@ -63,7 +65,7 @@ $stmt->execute([
     $role,
     $name,
     $email,
-    password_hash($password, PASSWORD_DEFAULT),
+    $passwordHash,
     $phone,
     $address,
     $restaurantName,
@@ -73,6 +75,29 @@ $stmt->execute([
 ]);
 
 $userId = (int) $pdo->lastInsertId();
+
+if ($role === 'customer') {
+    $custStmt = $pdo->prepare(
+        'INSERT INTO customer (Customer_Id, Customer_Name, Customer_Email, Customer_Phone, Customer_Password, Customer_Address)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE Customer_Name = VALUES(Customer_Name), Customer_Phone = VALUES(Customer_Phone), Customer_Password = VALUES(Customer_Password), Customer_Address = VALUES(Customer_Address)'
+    );
+    $custStmt->execute([$userId, $name, $email, $phone, $passwordHash, $address]);
+} elseif ($role === 'restaurant') {
+    $restStmt = $pdo->prepare(
+        'INSERT INTO restaurant (Restaurant_Id, Restaurant_Owner, Restaurant_Name, Restaurant_Email, Restaurant_Phone, Restaurant_Password, Restaurant_Address, logo, is_open)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE Restaurant_Owner = VALUES(Restaurant_Owner), Restaurant_Name = VALUES(Restaurant_Name), Restaurant_Phone = VALUES(Restaurant_Phone), Restaurant_Password = VALUES(Restaurant_Password), Restaurant_Address = VALUES(Restaurant_Address), logo = VALUES(logo), is_open = VALUES(is_open)'
+    );
+    $restStmt->execute([$userId, $name, $restaurantName, $email, $phone, $passwordHash, $address, $logo !== '' ? $logo : null, 1]);
+} elseif ($role === 'rider') {
+    $riderStmt = $pdo->prepare(
+        'INSERT INTO rider (Rider_Id, Rider_Name, Rider_Email, Rider_Phone, Rider_Password, vehicle_type)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE Rider_Name = VALUES(Rider_Name), Rider_Phone = VALUES(Rider_Phone), Rider_Password = VALUES(Rider_Password), vehicle_type = VALUES(vehicle_type)'
+    );
+    $riderStmt->execute([$userId, $name, $email, $phone, $passwordHash, $vehicleType]);
+}
 $userStmt = $pdo->prepare('SELECT * FROM users WHERE id = ?');
 $userStmt->execute([$userId]);
 $user = $userStmt->fetch();

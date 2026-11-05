@@ -25,6 +25,45 @@ CREATE TABLE IF NOT EXISTS users (
   UNIQUE KEY uniq_users_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS customer (
+  Customer_Id INT UNSIGNED NOT NULL,
+  Customer_Name VARCHAR(120) NOT NULL,
+  Customer_Email VARCHAR(190) NOT NULL,
+  Customer_Phone VARCHAR(30) NOT NULL,
+  Customer_Password VARCHAR(255) NOT NULL,
+  Customer_Address VARCHAR(255) NOT NULL DEFAULT '',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (Customer_Id),
+  UNIQUE KEY uniq_customer_email (Customer_Email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS restaurant (
+  Restaurant_Id INT UNSIGNED NOT NULL,
+  Restaurant_Owner VARCHAR(120) NOT NULL,
+  Restaurant_Name VARCHAR(150) NOT NULL,
+  Restaurant_Email VARCHAR(190) NOT NULL,
+  Restaurant_Phone VARCHAR(30) NOT NULL,
+  Restaurant_Password VARCHAR(255) NOT NULL,
+  Restaurant_Address VARCHAR(255) NOT NULL DEFAULT '',
+  logo LONGTEXT NULL,
+  is_open TINYINT(1) NOT NULL DEFAULT 1,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (Restaurant_Id),
+  UNIQUE KEY uniq_restaurant_email (Restaurant_Email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS rider (
+  Rider_Id INT UNSIGNED NOT NULL,
+  Rider_Name VARCHAR(120) NOT NULL,
+  Rider_Email VARCHAR(190) NOT NULL,
+  Rider_Phone VARCHAR(30) NOT NULL,
+  Rider_Password VARCHAR(255) NOT NULL DEFAULT '',
+  vehicle_type VARCHAR(40) NOT NULL DEFAULT 'Bike',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (Rider_Id),
+  UNIQUE KEY uniq_rider_email (Rider_Email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS foods (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
   restaurant_id INT UNSIGNED NOT NULL,

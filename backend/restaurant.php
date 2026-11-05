@@ -18,4 +18,7 @@ $isOpen = (bool) $data['isOpen'];
 $stmt = db()->prepare('UPDATE users SET is_open = ? WHERE id = ?');
 $stmt->execute([$isOpen ? 1 : 0, (int) $user['id']]);
 
+$restStmt = db()->prepare('UPDATE restaurant SET is_open = ? WHERE Restaurant_Id = ?');
+$restStmt->execute([$isOpen ? 1 : 0, (int) $user['id']]);
+
 json_response(['isOpen' => $isOpen]);

@@ -10,19 +10,20 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
 $pdo = db();
 
 $restaurants = $pdo->query(
-    "SELECT id, restaurant_name, logo, phone, address, is_open
+    "SELECT id, custom_id, restaurant_name, logo, phone, address, is_open
      FROM users WHERE role = 'restaurant' ORDER BY restaurant_name"
 )->fetchAll();
 
 $foods = $pdo->query(
     'SELECT f.*, u.restaurant_name, u.is_open
-     FROM foods f JOIN users u ON u.id = f.restaurant_id
+     FROM foods f
+     LEFT JOIN users u ON (u.custom_id = f.restaurant_id OR CAST(u.id AS CHAR) = f.restaurant_id)
      ORDER BY f.id'
 )->fetchAll();
 
 json_response([
     'restaurants' => array_map(static fn (array $row) => [
-        'id' => (int) $row['id'],
+        'id' => !empty($row['custom_id']) ? (string) $row['custom_id'] : (int) $row['id'],
         'name' => $row['restaurant_name'],
         'logo' => $row['logo'],
         'phone' => $row['phone'],
@@ -31,9 +32,9 @@ json_response([
     ], $restaurants),
     'foods' => array_map(static fn (array $row) => [
         'id' => (int) $row['id'],
-        'restaurantId' => (int) $row['restaurant_id'],
-        'restaurantName' => $row['restaurant_name'],
-        'isOpen' => (bool) $row['is_open'],
+        'restaurantId' => (string) $row['restaurant_id'],
+        'restaurantName' => $row['restaurant_name'] ?? '',
+        'isOpen' => (bool) ($row['is_open'] ?? false),
         'name' => $row['name'],
         'description' => $row['description'],
         'price' => (float) $row['price'],

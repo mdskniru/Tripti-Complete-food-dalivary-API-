@@ -19,6 +19,7 @@ $tables = [
     "CREATE TABLE IF NOT EXISTS users (
         id INT UNSIGNED NOT NULL AUTO_INCREMENT,
         role ENUM('customer', 'restaurant', 'rider') NOT NULL DEFAULT 'customer',
+        custom_id VARCHAR(50) NULL DEFAULT NULL,
         name VARCHAR(120) NOT NULL,
         email VARCHAR(190) NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
@@ -33,7 +34,8 @@ $tables = [
         UNIQUE KEY uniq_users_email (email)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
     "CREATE TABLE IF NOT EXISTS customer (
-        Customer_Id INT UNSIGNED NOT NULL,
+        Customer_Id VARCHAR(50) NOT NULL,
+        user_id INT UNSIGNED NULL DEFAULT NULL,
         Customer_Name VARCHAR(120) NOT NULL,
         Customer_Email VARCHAR(190) NOT NULL,
         Customer_Phone VARCHAR(30) NOT NULL,
@@ -44,7 +46,8 @@ $tables = [
         UNIQUE KEY uniq_customer_email (Customer_Email)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
     "CREATE TABLE IF NOT EXISTS restaurant (
-        Restaurant_Id INT UNSIGNED NOT NULL,
+        Restaurant_Id VARCHAR(50) NOT NULL,
+        user_id INT UNSIGNED NULL DEFAULT NULL,
         Restaurant_Owner VARCHAR(120) NOT NULL,
         Restaurant_Name VARCHAR(150) NOT NULL,
         Restaurant_Email VARCHAR(190) NOT NULL,
@@ -58,7 +61,8 @@ $tables = [
         UNIQUE KEY uniq_restaurant_email (Restaurant_Email)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
     "CREATE TABLE IF NOT EXISTS rider (
-        Rider_Id INT UNSIGNED NOT NULL,
+        Rider_Id VARCHAR(50) NOT NULL,
+        user_id INT UNSIGNED NULL DEFAULT NULL,
         Rider_Name VARCHAR(120) NOT NULL,
         Rider_Email VARCHAR(190) NOT NULL,
         Rider_Phone VARCHAR(30) NOT NULL,
@@ -219,22 +223,31 @@ if ($existing === 0) {
     $seeded = true;
 }
 
-$pdo->exec("
-    INSERT INTO customer (Customer_Id, Customer_Name, Customer_Email, Customer_Phone, Customer_Password, Customer_Address, created_at)
-    SELECT id, name, email, phone, password_hash, address, created_at
-    FROM users WHERE role = 'customer'
-    ON DUPLICATE KEY UPDATE Customer_Name = VALUES(Customer_Name), Customer_Phone = VALUES(Customer_Phone), Customer_Password = VALUES(Customer_Password), Customer_Address = VALUES(Customer_Address);
+$syncUsers = $pdo->query("SELECT id, role, custom_id, name, email, password_hash, phone, address, restaurant_name, logo, is_open, vehicle_type, created_at FROM users")->fetchAll();
 
-    INSERT INTO restaurant (Restaurant_Id, Restaurant_Owner, Restaurant_Name, Restaurant_Email, Restaurant_Phone, Restaurant_Password, Restaurant_Address, logo, is_open, created_at)
-    SELECT id, name, restaurant_name, email, phone, password_hash, address, logo, is_open, created_at
-    FROM users WHERE role = 'restaurant'
-    ON DUPLICATE KEY UPDATE Restaurant_Owner = VALUES(Restaurant_Owner), Restaurant_Name = VALUES(Restaurant_Name), Restaurant_Phone = VALUES(Restaurant_Phone), Restaurant_Password = VALUES(Restaurant_Password), Restaurant_Address = VALUES(Restaurant_Address), logo = VALUES(logo), is_open = VALUES(is_open);
-
-    INSERT INTO rider (Rider_Id, Rider_Name, Rider_Email, Rider_Phone, Rider_Password, vehicle_type, created_at)
-    SELECT id, name, email, phone, password_hash, vehicle_type, created_at
-    FROM users WHERE role = 'rider'
-    ON DUPLICATE KEY UPDATE Rider_Name = VALUES(Rider_Name), Rider_Phone = VALUES(Rider_Phone), Rider_Password = VALUES(Rider_Password), vehicle_type = VALUES(vehicle_type);
-");
+foreach ($syncUsers as $u) {
+    $cid = $u['custom_id'];
+    if (!$cid) {
+        $cid = generate_role_id($pdo, $u['role']);
+        $pdo->prepare("UPDATE users SET custom_id = ? WHERE id = ?")->execute([$cid, $u['id']]);
+    }
+    if ($u['role'] === 'customer') {
+        $st = $pdo->prepare("INSERT INTO customer (Customer_Id, user_id, Customer_Name, Customer_Email, Customer_Phone, Customer_Password, Customer_Address, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE Customer_Name = VALUES(Customer_Name), Customer_Phone = VALUES(Customer_Phone), Customer_Password = VALUES(Customer_Password), Customer_Address = VALUES(Customer_Address), user_id = VALUES(user_id)");
+        $st->execute([$cid, (int)$u['id'], $u['name'], $u['email'], $u['phone'], $u['password_hash'], $u['address'], $u['created_at']]);
+    } elseif ($u['role'] === 'restaurant') {
+        $st = $pdo->prepare("INSERT INTO restaurant (Restaurant_Id, user_id, Restaurant_Owner, Restaurant_Name, Restaurant_Email, Restaurant_Phone, Restaurant_Password, Restaurant_Address, logo, is_open, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE Restaurant_Owner = VALUES(Restaurant_Owner), Restaurant_Name = VALUES(Restaurant_Name), Restaurant_Phone = VALUES(Restaurant_Phone), Restaurant_Password = VALUES(Restaurant_Password), Restaurant_Address = VALUES(Restaurant_Address), logo = VALUES(logo), is_open = VALUES(is_open), user_id = VALUES(user_id)");
+        $st->execute([$cid, (int)$u['id'], $u['name'], $u['restaurant_name'], $u['email'], $u['phone'], $u['password_hash'], $u['address'], $u['logo'], (int)$u['is_open'], $u['created_at']]);
+    } elseif ($u['role'] === 'rider') {
+        $st = $pdo->prepare("INSERT INTO rider (Rider_Id, user_id, Rider_Name, Rider_Email, Rider_Phone, Rider_Password, vehicle_type, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE Rider_Name = VALUES(Rider_Name), Rider_Phone = VALUES(Rider_Phone), Rider_Password = VALUES(Rider_Password), vehicle_type = VALUES(vehicle_type), user_id = VALUES(user_id)");
+        $st->execute([$cid, (int)$u['id'], $u['name'], $u['email'], $u['phone'], $u['password_hash'], $u['vehicle_type'], $u['created_at']]);
+    }
+}
 
 json_response([
     'ok' => true,

@@ -4,7 +4,7 @@ declare(strict_types=1);
 require __DIR__ . '/config.php';
 
 const ORDER_BASE_SELECT = 'SELECT o.*, r.restaurant_name, r.address AS restaurant_address, r.is_open AS restaurant_is_open
-    FROM orders o JOIN users r ON r.id = o.restaurant_id';
+    FROM orders o LEFT JOIN users r ON r.custom_id = o.restaurant_id';
 
 function order_items_map(PDO $pdo, array $orderIds): array
 {
@@ -35,9 +35,9 @@ function order_payload(array $row, array $items = []): array
         'code' => $row['code'],
         'status' => $row['status'],
         'payment' => $row['payment'],
-        'customerId' => (int) $row['customer_id'],
-        'restaurantId' => (int) $row['restaurant_id'],
-        'riderId' => $row['rider_id'] !== null ? (int) $row['rider_id'] : null,
+        'customerId' => (string) $row['customer_id'],
+        'restaurantId' => (string) $row['restaurant_id'],
+        'riderId' => $row['rider_id'] !== null ? (string) $row['rider_id'] : null,
         'customerName' => $row['customer_name'],
         'phone' => $row['phone'],
         'address' => $row['address'],
@@ -79,13 +79,13 @@ $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 if ($method === 'GET') {
     if ($user['role'] === 'customer') {
         $stmt = $pdo->prepare(ORDER_BASE_SELECT . ' WHERE o.customer_id = ? ORDER BY o.created_at DESC');
-        $stmt->execute([(int) $user['id']]);
+        $stmt->execute([(string) ($user['custom_id'] ?? (string) $user['id'])]);
         json_response(['orders' => payloads_for_rows($pdo, $stmt->fetchAll())]);
     }
 
     if ($user['role'] === 'restaurant') {
         $stmt = $pdo->prepare(ORDER_BASE_SELECT . ' WHERE o.restaurant_id = ? ORDER BY o.created_at DESC');
-        $stmt->execute([(int) $user['id']]);
+        $stmt->execute([(string) ($user['custom_id'] ?? (string) $user['id'])]);
         json_response(['orders' => payloads_for_rows($pdo, $stmt->fetchAll())]);
     }
 
@@ -95,7 +95,7 @@ if ($method === 'GET') {
     $available->execute();
 
     $mine = $pdo->prepare(ORDER_BASE_SELECT . ' WHERE o.rider_id = ? ORDER BY o.created_at DESC');
-    $mine->execute([(int) $user['id']]);
+    $mine->execute([(string) ($user['custom_id'] ?? (string) $user['id'])]);
 
     json_response([
         'available' => payloads_for_rows($pdo, $available->fetchAll()),
@@ -138,7 +138,7 @@ if ($method === 'POST') {
     $placeholders = implode(',', array_fill(0, count($qtyByFood), '?'));
     $stmt = $pdo->prepare(
         "SELECT f.*, u.is_open, u.restaurant_name FROM foods f
-         JOIN users u ON u.id = f.restaurant_id WHERE f.id IN ($placeholders)"
+         LEFT JOIN users u ON u.custom_id = f.restaurant_id WHERE f.id IN ($placeholders)"
     );
     $stmt->execute(array_keys($qtyByFood));
     $foods = $stmt->fetchAll();
@@ -159,8 +159,8 @@ if ($method === 'POST') {
             fail($food['name'] . ' is currently unavailable', 409);
         }
         if ($restaurantId === null) {
-            $restaurantId = (int) $food['restaurant_id'];
-        } elseif ($restaurantId !== (int) $food['restaurant_id']) {
+            $restaurantId = (string) $food['restaurant_id'];
+        } elseif ($restaurantId !== (string) $food['restaurant_id']) {
             fail('All items in an order must come from the same restaurant', 409);
         }
 
@@ -201,7 +201,7 @@ if ($method === 'POST') {
         );
         $insertOrder->execute([
             $code,
-            (int) $user['id'],
+            (string) ($user['custom_id'] ?? ''),
             $restaurantId,
             $name,
             $phone,
@@ -262,7 +262,7 @@ if ($method === 'PATCH' || $method === 'PUT') {
     $current = $order['status'];
 
     if ($user['role'] === 'restaurant') {
-        if ((int) $order['restaurant_id'] !== (int) $user['id']) {
+        if ((string) $order['restaurant_id'] !== (string) ($user['custom_id'] ?? '')) {
             locked_fail($pdo, 'This order belongs to another restaurant', 403);
         }
         $allowed = ($current === 'Placed' && in_array($status, ['Accepted', 'Rejected'], true))
@@ -278,14 +278,14 @@ if ($method === 'PATCH' || $method === 'PUT') {
             if ($current !== 'Ready for Pickup') {
                 locked_fail($pdo, 'This order is not ready for pickup');
             }
-            if ($order['rider_id'] !== null && (int) $order['rider_id'] !== (int) $user['id']) {
+            if ($order['rider_id'] !== null && (string) $order['rider_id'] !== (string) ($user['custom_id'] ?? '')) {
                 locked_fail($pdo, 'Another rider already picked up this order');
             }
             $update = $pdo->prepare('UPDATE orders SET status = ?, rider_id = ?, updated_at = NOW() WHERE id = ?');
-            $update->execute([$status, (int) $user['id'], $orderId]);
+            $update->execute([$status, (string) ($user['custom_id'] ?? ''), $orderId]);
         } elseif ($status === 'On the Way' || $status === 'Delivered') {
             $needed = $status === 'On the Way' ? 'Picked Up' : 'On the Way';
-            if ($order['rider_id'] === null || (int) $order['rider_id'] !== (int) $user['id']) {
+            if ($order['rider_id'] === null || (string) $order['rider_id'] !== (string) ($user['custom_id'] ?? '')) {
                 locked_fail($pdo, 'This delivery is assigned to another rider', 403);
             }
             if ($current !== $needed) {

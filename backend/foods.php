@@ -7,7 +7,7 @@ function food_payload(array $row): array
 {
     return [
         'id' => (int) $row['id'],
-        'restaurantId' => (int) $row['restaurant_id'],
+        'restaurantId' => (string) $row['restaurant_id'],
         'restaurantName' => $row['restaurant_name'],
         'isOpen' => (bool) $row['is_open'],
         'name' => $row['name'],
@@ -23,7 +23,7 @@ function find_food(PDO $pdo, int $id): ?array
 {
     $stmt = $pdo->prepare(
         'SELECT f.*, u.restaurant_name, u.is_open
-         FROM foods f JOIN users u ON u.id = f.restaurant_id
+         FROM foods f LEFT JOIN users u ON u.custom_id = f.restaurant_id
          WHERE f.id = ? LIMIT 1'
     );
     $stmt->execute([$id]);
@@ -62,7 +62,7 @@ if ($method === 'POST') {
          VALUES (?, ?, ?, ?, ?, ?, ?)'
     );
     $stmt->execute([
-        (int) $user['id'],
+        (string) ($user['custom_id'] ?? ''),
         $name,
         $description,
         $price,
@@ -82,7 +82,7 @@ if ($method === 'PATCH' || $method === 'PUT') {
     }
 
     $existing = $pdo->prepare('SELECT * FROM foods WHERE id = ? AND restaurant_id = ? LIMIT 1');
-    $existing->execute([$id, (int) $user['id']]);
+    $existing->execute([$id, (string) ($user['custom_id'] ?? '')]);
     if (!$existing->fetch()) {
         fail('Food not found', 404);
     }
@@ -148,7 +148,7 @@ if ($method === 'DELETE') {
     }
 
     $stmt = $pdo->prepare('DELETE FROM foods WHERE id = ? AND restaurant_id = ?');
-    $stmt->execute([$id, (int) $user['id']]);
+    $stmt->execute([$id, (string) ($user['custom_id'] ?? '')]);
     if ($stmt->rowCount() === 0) {
         fail('Food not found', 404);
     }

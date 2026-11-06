@@ -28,10 +28,13 @@ if (!$user) {
         if ($cRow = $cStmt->fetch()) {
             if (password_verify($password, $cRow['Customer_Password']) || $password === $cRow['Customer_Password']) {
                 $hash = password_hash($password, PASSWORD_DEFAULT);
-                $ins = $pdo->prepare('INSERT INTO users (id, role, name, email, password_hash, phone, address) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash)');
-                $ins->execute([(int)$cRow['Customer_Id'], 'customer', $cRow['Customer_Name'], $email, $hash, (string)$cRow['Customer_Phone'], $cRow['Customer_Address'] ?? '']);
+                $ins = $pdo->prepare('INSERT INTO users (custom_id, role, name, email, password_hash, phone, address) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash), custom_id = VALUES(custom_id)');
+                $ins->execute([(string)$cRow['Customer_Id'], 'customer', $cRow['Customer_Name'], $email, $hash, (string)$cRow['Customer_Phone'], $cRow['Customer_Address'] ?? '']);
                 $stmt->execute([$email]);
                 $user = $stmt->fetch();
+                if ($user) {
+                    $pdo->prepare('UPDATE customer SET user_id = ? WHERE Customer_Id = ?')->execute([(int)$user['id'], $cRow['Customer_Id']]);
+                }
             }
         }
     }
@@ -41,10 +44,13 @@ if (!$user) {
         if ($rRow = $rStmt->fetch()) {
             if (password_verify($password, $rRow['Restaurant_Password']) || $password === $rRow['Restaurant_Password']) {
                 $hash = password_hash($password, PASSWORD_DEFAULT);
-                $ins = $pdo->prepare('INSERT INTO users (id, role, name, email, password_hash, phone, address, restaurant_name, logo, is_open) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash)');
-                $ins->execute([(int)$rRow['Restaurant_Id'], 'restaurant', $rRow['Restaurant_Owner'], $email, $hash, (string)$rRow['Restaurant_Phone'], $rRow['Restaurant_Address'] ?? '', $rRow['Restaurant_Name'], $rRow['logo'] ?? null, (int)($rRow['is_open'] ?? 1)]);
+                $ins = $pdo->prepare('INSERT INTO users (custom_id, role, name, email, password_hash, phone, address, restaurant_name, logo, is_open) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash), custom_id = VALUES(custom_id)');
+                $ins->execute([(string)$rRow['Restaurant_Id'], 'restaurant', $rRow['Restaurant_Owner'], $email, $hash, (string)$rRow['Restaurant_Phone'], $rRow['Restaurant_Address'] ?? '', $rRow['Restaurant_Name'], $rRow['logo'] ?? null, (int)($rRow['is_open'] ?? 1)]);
                 $stmt->execute([$email]);
                 $user = $stmt->fetch();
+                if ($user) {
+                    $pdo->prepare('UPDATE restaurant SET user_id = ? WHERE Restaurant_Id = ?')->execute([(int)$user['id'], $rRow['Restaurant_Id']]);
+                }
             }
         }
     }
@@ -55,10 +61,13 @@ if (!$user) {
             $rdPass = $rdRow['Rider_Password'] ?? '';
             if ($rdPass === '' || password_verify($password, $rdPass) || $password === $rdPass) {
                 $hash = password_hash($password, PASSWORD_DEFAULT);
-                $ins = $pdo->prepare('INSERT INTO users (id, role, name, email, password_hash, phone, vehicle_type) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash)');
-                $ins->execute([(int)$rdRow['Rider_Id'], 'rider', $rdRow['Rider_Name'], $email, $hash, (string)$rdRow['Rider_Phone'], $rdRow['vehicle_type'] ?? 'Bike']);
+                $ins = $pdo->prepare('INSERT INTO users (custom_id, role, name, email, password_hash, phone, vehicle_type) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash), custom_id = VALUES(custom_id)');
+                $ins->execute([(string)$rdRow['Rider_Id'], 'rider', $rdRow['Rider_Name'], $email, $hash, (string)$rdRow['Rider_Phone'], $rdRow['vehicle_type'] ?? 'Bike']);
                 $stmt->execute([$email]);
                 $user = $stmt->fetch();
+                if ($user) {
+                    $pdo->prepare('UPDATE rider SET user_id = ? WHERE Rider_Id = ?')->execute([(int)$user['id'], $rdRow['Rider_Id']]);
+                }
             }
         }
     }
@@ -67,22 +76,22 @@ if (!$user) {
 if ($user && !password_verify($password, $user['password_hash'])) {
     $altMatch = false;
     if ($user['role'] === 'customer') {
-        $chk = $pdo->prepare('SELECT Customer_Password FROM customer WHERE Customer_Id = ? LIMIT 1');
-        $chk->execute([(int)$user['id']]);
+        $chk = $pdo->prepare('SELECT Customer_Password FROM customer WHERE Customer_Id = ? OR user_id = ? OR Customer_Email = ? LIMIT 1');
+        $chk->execute([(string)($user['custom_id'] ?? ''), (int)$user['id'], $user['email']]);
         $rowPass = $chk->fetchColumn();
         if ($rowPass && (password_verify($password, $rowPass) || $password === $rowPass)) {
             $altMatch = true;
         }
     } elseif ($user['role'] === 'restaurant') {
-        $chk = $pdo->prepare('SELECT Restaurant_Password FROM restaurant WHERE Restaurant_Id = ? LIMIT 1');
-        $chk->execute([(int)$user['id']]);
+        $chk = $pdo->prepare('SELECT Restaurant_Password FROM restaurant WHERE Restaurant_Id = ? OR user_id = ? OR Restaurant_Email = ? LIMIT 1');
+        $chk->execute([(string)($user['custom_id'] ?? ''), (int)$user['id'], $user['email']]);
         $rowPass = $chk->fetchColumn();
         if ($rowPass && (password_verify($password, $rowPass) || $password === $rowPass)) {
             $altMatch = true;
         }
     } elseif ($user['role'] === 'rider') {
-        $chk = $pdo->prepare('SELECT Rider_Password FROM rider WHERE Rider_Id = ? LIMIT 1');
-        $chk->execute([(int)$user['id']]);
+        $chk = $pdo->prepare('SELECT Rider_Password FROM rider WHERE Rider_Id = ? OR user_id = ? OR Rider_Email = ? LIMIT 1');
+        $chk->execute([(string)($user['custom_id'] ?? ''), (int)$user['id'], $user['email']]);
         $rowPass = $chk->fetchColumn();
         if ($rowPass && (password_verify($password, $rowPass) || $password === $rowPass)) {
             $altMatch = true;

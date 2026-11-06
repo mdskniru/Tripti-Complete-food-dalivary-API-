@@ -134,8 +134,12 @@ function require_user(array $roles = []): array
 
 function public_user(array $user): array
 {
+    $id = !empty($user['custom_id']) ? (string) $user['custom_id'] : (int) $user['id'];
     return [
-        'id' => (int) $user['id'],
+        'id' => $id,
+        'userId' => (int) $user['id'],
+        'code' => $user['custom_id'] ?? '',
+        'customId' => $user['custom_id'] ?? '',
         'role' => $user['role'],
         'name' => $user['name'],
         'email' => $user['email'],
@@ -147,6 +151,44 @@ function public_user(array $user): array
         'vehicleType' => $user['vehicle_type'],
         'createdAt' => $user['created_at'],
     ];
+}
+
+function generate_role_id(PDO $pdo, string $role): string
+{
+    $prefixMap = [
+        'customer' => ['table' => 'customer', 'col' => 'Customer_Id', 'prefix' => 'CUS'],
+        'restaurant' => ['table' => 'restaurant', 'col' => 'Restaurant_Id', 'prefix' => 'RES'],
+        'rider' => ['table' => 'rider', 'col' => 'Rider_Id', 'prefix' => 'RID'],
+    ];
+
+    $cfg = $prefixMap[$role] ?? $prefixMap['customer'];
+    $datePart = date('ymd');
+    $pattern = $cfg['prefix'] . '-' . $datePart . '-%';
+
+    $stmt = $pdo->prepare(
+        "SELECT {$cfg['col']} FROM {$cfg['table']} WHERE {$cfg['col']} LIKE ? ORDER BY {$cfg['col']} DESC LIMIT 1"
+    );
+    $stmt->execute([$pattern]);
+    $lastId = $stmt->fetchColumn();
+
+    $nextSeq = 1;
+    if ($lastId) {
+        $parts = explode('-', (string) $lastId);
+        $lastSeq = (int) end($parts);
+        $nextSeq = $lastSeq + 1;
+    }
+
+    do {
+        $candidate = sprintf('%s-%s-%04d', $cfg['prefix'], $datePart, $nextSeq);
+        $check = $pdo->prepare("SELECT COUNT(*) FROM {$cfg['table']} WHERE {$cfg['col']} = ?");
+        $check->execute([$candidate]);
+        $exists = (int) $check->fetchColumn() > 0;
+        if ($exists) {
+            $nextSeq++;
+        }
+    } while ($exists);
+
+    return $candidate;
 }
 
 function issue_token(int $userId): string

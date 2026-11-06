@@ -56,13 +56,15 @@ if ($check->fetch()) {
 }
 
 $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+$customId = generate_role_id($pdo, $role);
 
 $stmt = $pdo->prepare(
-    'INSERT INTO users (role, name, email, password_hash, phone, address, restaurant_name, logo, is_open, vehicle_type)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO users (role, custom_id, name, email, password_hash, phone, address, restaurant_name, logo, is_open, vehicle_type)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
 );
 $stmt->execute([
     $role,
+    $customId,
     $name,
     $email,
     $passwordHash,
@@ -78,25 +80,25 @@ $userId = (int) $pdo->lastInsertId();
 
 if ($role === 'customer') {
     $custStmt = $pdo->prepare(
-        'INSERT INTO customer (Customer_Id, Customer_Name, Customer_Email, Customer_Phone, Customer_Password, Customer_Address)
-         VALUES (?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE Customer_Name = VALUES(Customer_Name), Customer_Phone = VALUES(Customer_Phone), Customer_Password = VALUES(Customer_Password), Customer_Address = VALUES(Customer_Address)'
+        'INSERT INTO customer (Customer_Id, user_id, Customer_Name, Customer_Email, Customer_Phone, Customer_Password, Customer_Address)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE Customer_Name = VALUES(Customer_Name), Customer_Phone = VALUES(Customer_Phone), Customer_Password = VALUES(Customer_Password), Customer_Address = VALUES(Customer_Address), user_id = VALUES(user_id)'
     );
-    $custStmt->execute([$userId, $name, $email, $phone, $passwordHash, $address]);
+    $custStmt->execute([$customId, $userId, $name, $email, $phone, $passwordHash, $address]);
 } elseif ($role === 'restaurant') {
     $restStmt = $pdo->prepare(
-        'INSERT INTO restaurant (Restaurant_Id, Restaurant_Owner, Restaurant_Name, Restaurant_Email, Restaurant_Phone, Restaurant_Password, Restaurant_Address, logo, is_open)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE Restaurant_Owner = VALUES(Restaurant_Owner), Restaurant_Name = VALUES(Restaurant_Name), Restaurant_Phone = VALUES(Restaurant_Phone), Restaurant_Password = VALUES(Restaurant_Password), Restaurant_Address = VALUES(Restaurant_Address), logo = VALUES(logo), is_open = VALUES(is_open)'
+        'INSERT INTO restaurant (Restaurant_Id, user_id, Restaurant_Owner, Restaurant_Name, Restaurant_Email, Restaurant_Phone, Restaurant_Password, Restaurant_Address, logo, is_open)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE Restaurant_Owner = VALUES(Restaurant_Owner), Restaurant_Name = VALUES(Restaurant_Name), Restaurant_Phone = VALUES(Restaurant_Phone), Restaurant_Password = VALUES(Restaurant_Password), Restaurant_Address = VALUES(Restaurant_Address), logo = VALUES(logo), is_open = VALUES(is_open), user_id = VALUES(user_id)'
     );
-    $restStmt->execute([$userId, $name, $restaurantName, $email, $phone, $passwordHash, $address, $logo !== '' ? $logo : null, 1]);
+    $restStmt->execute([$customId, $userId, $name, $restaurantName, $email, $phone, $passwordHash, $address, $logo !== '' ? $logo : null, 1]);
 } elseif ($role === 'rider') {
     $riderStmt = $pdo->prepare(
-        'INSERT INTO rider (Rider_Id, Rider_Name, Rider_Email, Rider_Phone, Rider_Password, vehicle_type)
-         VALUES (?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE Rider_Name = VALUES(Rider_Name), Rider_Phone = VALUES(Rider_Phone), Rider_Password = VALUES(Rider_Password), vehicle_type = VALUES(vehicle_type)'
+        'INSERT INTO rider (Rider_Id, user_id, Rider_Name, Rider_Email, Rider_Phone, Rider_Password, vehicle_type)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE Rider_Name = VALUES(Rider_Name), Rider_Phone = VALUES(Rider_Phone), Rider_Password = VALUES(Rider_Password), vehicle_type = VALUES(vehicle_type), user_id = VALUES(user_id)'
     );
-    $riderStmt->execute([$userId, $name, $email, $phone, $passwordHash, $vehicleType]);
+    $riderStmt->execute([$customId, $userId, $name, $email, $phone, $passwordHash, $vehicleType]);
 }
 $userStmt = $pdo->prepare('SELECT * FROM users WHERE id = ?');
 $userStmt->execute([$userId]);

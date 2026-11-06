@@ -39,10 +39,14 @@ export default function RestaurantDashboard() {
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const myFoods = useMemo(
-    () => foods.filter((food) => food.restaurantId === currentUser?.id),
-    [foods, currentUser]
-  );
+  const myFoods = useMemo(() => {
+    const restaurantIds = new Set(
+      [currentUser?.id, currentUser?.userId, currentUser?.customId, currentUser?.code]
+        .filter((id) => id !== null && id !== undefined && id !== '')
+        .map(String)
+    );
+    return foods.filter((food) => restaurantIds.has(String(food.restaurantId ?? '')));
+  }, [foods, currentUser]);
 
   const visibleOrders = useMemo(() => {
     if (orderFilter === 'Active') return orders.filter((order) => ACTIVE_STATUSES.includes(order.status));
